@@ -1,0 +1,90 @@
+Frequency Counter by using 8254 PIT with Hardware and Software
+; Program to use 8254 as a frequency counter
+;Program counters 0 and 1 for square wave mode
+;
+mov al,00110110B   ;counter 0, mode3, binary 
+out 0f3h,al                ;control port
+mov al,01110110B   ;counter 1, mode3, binary
+out 0f3h,al                ;control port
+;
+; Make each counter a divide-by 2000 (07D0H)  
+mov al,0d0h  ;LSB
+out 0f0h,al     ;counter 0
+out 0f1h,al     ;counter 1
+;
+mov al,07h    ;MSB
+out 0f0h,al     ;counter 0
+out 0f1h,al     ;counter 1
+;
+;Make counter 2 an event counter
+   cycle:  mov al,10110001B  ;counter 2, Mode 0 , BCD
+	out 0f3h,al                 ;control port
+	mov al,99h                ;initial count is 9999
+              out 0f2h,al                 ;LSB
+              out 0f2h,al                 ;MSB
+              ;
+	;Counter 2 is now counting pulses- done 
+	;when OUT1 goes low
+	;Read the status of counter 1 and rotate out1 into the carry
+   stat:	mov al,0e4h      ;Read-back counter 1 ( 11 10 0100B )
+ 	out 0f3h,al         ;control port
+	in al,0f1h           ;counter 1 status
+	rol al,1               ;move out1 to carry
+	jc  stat                ;wait until low
+	;
+	;Now latch count and status for counter 2 and test for overflow
+	mov al,0c8h       ;Read-back counter 2 ( 11 00 100 0B )
+       out 0f3h,al         ;control port
+	in al,0f2h           ;First read is status
+	rol al,1               ;Test out1
+	jc ovflw             ;If set then overflow
+	;
+	;Read the count and adjust for display
+	in al, 0f2h           ;get LSB
+       call adj               ;call subroutine to subtract from 99
+       inr al                  ; first clock pulse not counted
+       out 0,al              ;LSB display assumed at port 0
+       in al,0f2h           ;get MSB
+       call adj               ;call subroutine to subtract from 99
+       out 1,al              ;MSB display assumed at port 1
+       jmp cycle          ;Next cycle
+	;
+	;If overflow then come here and show FF in display
+   ovflw: in al,0f2h          ;finish the reads
+	in al,0f2h
+	mov al,0ffh      ;overflow code
+	out 0,al            ;LSB display
+	out 1,al            ;MSB display
+	;This routine subtracts the count from 99
+	;
+      adj:  mov bl,al        ;move count to BL
+	mov al,99h     ;Initial count
+               sub al,bl
+	ret
+	end
+
+
+
+
+I/O Adresses of 8254 PIT;
+F0H-Counter 0
+F1H-Counter 1
+F2H-Counter 2
+F3H-Control Reg.
+
+*Counter 0 and 1 are programmed Mode 3 as divide by 2000 (square-wave) counters. Assuming a 2MHz. System clock, this results in a frequency at OUT1 of;
+
+2x106/(2000x2000)=0.5Hz.
+
+A 0.5 Hz. Square-wave has a 2s Period.
+
+
+
+
+
+
+
+
+Assume that counter 2 contains 3275 just after OUT1 goes low. What is the frequency of the CLK2 input. 
+
+f in=9999-3275=6724 Hz.  
